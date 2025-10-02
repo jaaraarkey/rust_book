@@ -1,0 +1,85 @@
+import 'package:flutter/foundation.dart';
+import 'package:get_it/get_it.dart';
+import 'package:internet_connection_checker/internet_connection_checker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+// Core
+import 'core/network/network_info.dart';
+import 'core/storage/local_storage.dart';
+
+// Features - Auth
+import 'features/auth/data/datasources/auth_local_datasource.dart';
+import 'features/auth/data/datasources/auth_remote_datasource.dart';
+import 'features/auth/data/repositories/auth_repository_impl.dart';
+import 'features/auth/domain/repositories/auth_repository.dart';
+import 'features/auth/domain/usecases/login_usecase.dart';
+import 'features/auth/domain/usecases/register_usecase.dart';
+import 'features/auth/domain/usecases/logout_usecase.dart';
+import 'features/auth/presentation/bloc/auth_bloc.dart';
+
+// Features - Dashboard
+import 'features/dashboard/domain/usecases/get_dashboard_stats_usecase.dart';
+import 'features/dashboard/presentation/bloc/dashboard_bloc.dart';
+
+final sl = GetIt.instance;
+
+Future<void> init() async {
+  //! Features - Auth
+  // Bloc
+  sl.registerFactory(
+    () => AuthBloc(
+      loginUsecase: sl(),
+      registerUsecase: sl(),
+      logoutUsecase: sl(),
+    ),
+  );
+
+  // Use cases
+  sl.registerLazySingleton(() => LoginUsecase(sl()));
+  sl.registerLazySingleton(() => RegisterUsecase(sl()));
+  sl.registerLazySingleton(() => LogoutUsecase(sl()));
+
+  // Repository
+  sl.registerLazySingleton<AuthRepository>(
+    () => AuthRepositoryImpl(
+      remoteDataSource: sl(),
+      localDataSource: sl(),
+      networkInfo: sl(),
+    ),
+  );
+
+  // Data sources
+  sl.registerLazySingleton<AuthRemoteDataSource>(
+    () => AuthRemoteDataSourceImpl(),
+  );
+  sl.registerLazySingleton<AuthLocalDataSource>(
+    () => AuthLocalDataSourceImpl(localStorage: sl()),
+  );
+
+  //! Features - Dashboard
+  // Bloc
+  sl.registerFactory(
+    () => DashboardBloc(),
+  );
+
+  // Use cases
+  sl.registerLazySingleton(() => GetDashboardStatsUsecase());
+
+  //! Core
+  sl.registerLazySingleton<NetworkInfo>(
+    () => NetworkInfoImpl(kIsWeb ? null : sl()),
+  );
+
+  sl.registerLazySingleton<LocalStorage>(
+    () => LocalStorageImpl(sl()),
+  );
+
+  //! External
+  final sharedPreferences = await SharedPreferences.getInstance();
+  sl.registerLazySingleton(() => sharedPreferences);
+
+  // Register InternetConnectionChecker only for non-web platforms
+  if (!kIsWeb) {
+    sl.registerLazySingleton(() => InternetConnectionChecker());
+  }
+}
