@@ -11,6 +11,14 @@ class GetAllNotes implements UseCase<List<Note>, NoParams> {
 
   @override
   Future<Either<Failure, List<Note>>> call(NoParams params) async {
-    return await repository.getAllNotes();
+    print('🎯 GetAllNotes: UseCase called');
+    try {
+      final result = await repository.getAllNotes();
+      print('🎯 GetAllNotes: Repository returned result');
+      return result;
+    } catch (e) {
+      print('❌ GetAllNotes: Exception caught: $e');
+      return Left(UnknownFailure('Failed to get notes: $e'));
+    }
   }
 }

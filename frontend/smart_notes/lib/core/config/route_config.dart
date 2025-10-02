@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../features/auth/presentation/pages/splash_page.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/register_page.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
@@ -10,10 +9,12 @@ import '../../features/notes/presentation/pages/note_editor_page.dart';
 import '../../features/notes/presentation/pages/search_notes_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
 import '../../features/settings/presentation/pages/profile_page.dart';
+import '../../widgets/auth_wrapper.dart';
 
 class RouteConfig {
   // Route names
   static const String splash = '/';
+  static const String authWrapper = '/auth-wrapper';
   static const String login = '/login';
   static const String register = '/register';
   static const String dashboard = '/dashboard';
@@ -28,7 +29,10 @@ class RouteConfig {
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
       case splash:
-        return MaterialPageRoute(builder: (_) => const SplashPage());
+        return MaterialPageRoute(builder: (_) => const AuthWrapper());
+
+      case authWrapper:
+        return MaterialPageRoute(builder: (_) => const AuthWrapper());
 
       case login:
         return MaterialPageRoute(builder: (_) => const LoginPage());

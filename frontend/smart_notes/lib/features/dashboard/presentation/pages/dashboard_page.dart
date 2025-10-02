@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/global_notes_search_delegate.dart';
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
@@ -12,7 +13,10 @@ class DashboardPage extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: () {
-              // TODO: Implement global search
+              showSearch(
+                context: context,
+                delegate: GlobalNotesSearchDelegate(),
+              );
             },
           ),
           IconButton(

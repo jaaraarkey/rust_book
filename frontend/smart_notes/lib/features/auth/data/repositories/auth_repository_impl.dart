@@ -1,54 +1,40 @@
 import 'package:dartz/dartz.dart';
-import '../../../../core/error/exceptions.dart';
+import '../../../../core/auth/auth_service.dart';
 import '../../../../core/error/failures.dart';
-import '../../../../core/network/network_info.dart';
 import '../../domain/entities/auth_response.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
-import '../datasources/auth_local_datasource.dart';
-import '../datasources/auth_remote_datasource.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
-  final AuthRemoteDataSource remoteDataSource;
-  final AuthLocalDataSource localDataSource;
-  final NetworkInfo networkInfo;
+  final AuthService authService;
 
-  AuthRepositoryImpl({
-    required this.remoteDataSource,
-    required this.localDataSource,
-    required this.networkInfo,
-  });
+  AuthRepositoryImpl({required this.authService});
 
   @override
   Future<Either<Failure, AuthResponse>> login({
     required String email,
     required String password,
   }) async {
-    if (await networkInfo.isConnected) {
-      try {
-        final remoteAuthResponse = await remoteDataSource.login(
-          email: email,
-          password: password,
-        );
+    final result = await authService.login(email: email, password: password);
 
-        // Cache the auth response locally
-        await localDataSource.cacheAuthResponse(remoteAuthResponse);
-
-        return Right(remoteAuthResponse);
-      } on UnauthorizedException catch (e) {
-        return Left(UnauthorizedFailure(e.message));
-      } on NotFoundException catch (e) {
-        return Left(NotFoundFailure(e.message));
-      } on TimeoutException catch (e) {
-        return Left(TimeoutFailure(e.message));
-      } on ServerException catch (e) {
-        return Left(ServerFailure(e.message));
-      } catch (e) {
-        return const Left(UnknownFailure('An unexpected error occurred'));
-      }
-    } else {
-      return const Left(NetworkFailure('No internet connection'));
-    }
+    return result.fold(
+      (failure) => Left(failure),
+      (authResult) => Right(
+        AuthResponse(
+          user: User(
+            id: authResult.user.id,
+            email: authResult.user.email,
+            name: authResult.user.fullName,
+            createdAt: authResult.user.createdAt,
+            updatedAt: authResult.user.updatedAt ?? DateTime.now(),
+            isEmailVerified: authResult.user.isActive,
+          ),
+          accessToken: authResult.token,
+          refreshToken: '', // Not provided by current backend
+          expiresAt: DateTime.now().add(const Duration(hours: 24)),
+        ),
+      ),
+    );
   }
 
   @override
@@ -57,145 +43,89 @@ class AuthRepositoryImpl implements AuthRepository {
     required String password,
     required String name,
   }) async {
-    if (await networkInfo.isConnected) {
-      try {
-        final remoteAuthResponse = await remoteDataSource.register(
-          email: email,
-          password: password,
-          name: name,
-        );
+    final result = await authService.register(
+      email: email,
+      password: password,
+      fullName: name,
+    );
 
-        // Cache the auth response locally
-        await localDataSource.cacheAuthResponse(remoteAuthResponse);
-
-        return Right(remoteAuthResponse);
-      } on ValidationException catch (e) {
-        return Left(ValidationFailure(e.message));
-      } on TimeoutException catch (e) {
-        return Left(TimeoutFailure(e.message));
-      } on ServerException catch (e) {
-        return Left(ServerFailure(e.message));
-      } catch (e) {
-        return const Left(UnknownFailure('An unexpected error occurred'));
-      }
-    } else {
-      return const Left(NetworkFailure('No internet connection'));
-    }
+    return result.fold(
+      (failure) => Left(failure),
+      (authResult) => Right(
+        AuthResponse(
+          user: User(
+            id: authResult.user.id,
+            email: authResult.user.email,
+            name: authResult.user.fullName,
+            createdAt: authResult.user.createdAt,
+            updatedAt: authResult.user.updatedAt ?? DateTime.now(),
+            isEmailVerified: authResult.user.isActive,
+          ),
+          accessToken: authResult.token,
+          refreshToken: '', // Not provided by current backend
+          expiresAt: DateTime.now().add(const Duration(hours: 24)),
+        ),
+      ),
+    );
   }
 
   @override
   Future<Either<Failure, void>> logout() async {
     try {
-      // Try to logout from server first
-      if (await networkInfo.isConnected) {
-        try {
-          await remoteDataSource.logout();
-        } catch (e) {
-          // Don't fail local logout if remote logout fails
-        }
-      }
-
-      // Always clear local auth data
-      await localDataSource.clearAuthData();
-
+      await authService.logout();
       return const Right(null);
     } catch (e) {
-      return const Left(UnknownFailure('Failed to logout'));
-    }
-  }
-
-  @override
-  Future<Either<Failure, AuthResponse>> refreshToken() async {
-    if (await networkInfo.isConnected) {
-      try {
-        final refreshToken = await localDataSource.getRefreshToken();
-        if (refreshToken == null) {
-          return const Left(UnauthorizedFailure('No refresh token available'));
-        }
-
-        final remoteAuthResponse = await remoteDataSource.refreshToken(
-          refreshToken: refreshToken,
-        );
-
-        // Cache the new auth response locally
-        await localDataSource.cacheAuthResponse(remoteAuthResponse);
-
-        return Right(remoteAuthResponse);
-      } on UnauthorizedException catch (e) {
-        // Clear local auth data if refresh token is invalid
-        await localDataSource.clearAuthData();
-        return Left(UnauthorizedFailure(e.message));
-      } on ServerException catch (e) {
-        return Left(ServerFailure(e.message));
-      } catch (e) {
-        return const Left(UnknownFailure('An unexpected error occurred'));
-      }
-    } else {
-      // Try to get cached auth response when offline
-      try {
-        final cachedAuthResponse =
-            await localDataSource.getCachedAuthResponse();
-        if (cachedAuthResponse != null) {
-          return Right(cachedAuthResponse);
-        } else {
-          return const Left(
-              NetworkFailure('No internet connection and no cached data'));
-        }
-      } catch (e) {
-        return const Left(CacheFailure('Failed to retrieve cached auth data'));
-      }
+      return Left(ServerFailure('Logout failed: $e'));
     }
   }
 
   @override
   Future<Either<Failure, User>> getCurrentUser() async {
-    if (await networkInfo.isConnected) {
-      try {
-        final remoteUser = await remoteDataSource.getCurrentUser();
+    final result = await authService.getCurrentUser();
 
-        // Cache the user locally
-        await localDataSource.cacheUser(remoteUser);
+    return result.fold(
+      (failure) => Left(failure),
+      (authUser) => Right(
+        User(
+          id: authUser.id,
+          email: authUser.email,
+          name: authUser.fullName,
+          createdAt: authUser.createdAt,
+          updatedAt: authUser.updatedAt ?? DateTime.now(),
+          isEmailVerified: authUser.isActive,
+        ),
+      ),
+    );
+  }
 
-        return Right(remoteUser);
-      } on UnauthorizedException catch (e) {
-        return Left(UnauthorizedFailure(e.message));
-      } on ServerException catch (e) {
-        return Left(ServerFailure(e.message));
-      } catch (e) {
-        return const Left(UnknownFailure('An unexpected error occurred'));
-      }
-    } else {
-      // Try to get cached user when offline
-      try {
-        final cachedUser = await localDataSource.getCachedUser();
-        if (cachedUser != null) {
-          return Right(cachedUser);
-        } else {
-          return const Left(
-              NetworkFailure('No internet connection and no cached user data'));
-        }
-      } catch (e) {
-        return const Left(CacheFailure('Failed to retrieve cached user data'));
-      }
+  @override
+  Future<Either<Failure, AuthResponse>> refreshToken() async {
+    // For now, just return current user if authenticated
+    final isAuth = await authService.isAuthenticated();
+    if (!isAuth) {
+      return const Left(ServerFailure('Not authenticated'));
     }
+
+    final userResult = await getCurrentUser();
+    return userResult.fold(
+      (failure) => Left(failure),
+      (user) => Right(
+        AuthResponse(
+          user: user,
+          accessToken: '', // Token is managed internally by AuthService
+          refreshToken: '',
+          expiresAt: DateTime.now().add(const Duration(hours: 24)),
+        ),
+      ),
+    );
   }
 
   @override
   Future<Either<Failure, void>> forgotPassword({
     required String email,
   }) async {
-    if (await networkInfo.isConnected) {
-      try {
-        await remoteDataSource.forgotPassword(email: email);
-        return const Right(null);
-      } on ServerException catch (e) {
-        return Left(ServerFailure(e.message));
-      } catch (e) {
-        return const Left(UnknownFailure('An unexpected error occurred'));
-      }
-    } else {
-      return const Left(NetworkFailure('No internet connection'));
-    }
+    // Not implemented in backend yet
+    return const Left(ServerFailure('Forgot password not implemented'));
   }
 
   @override
@@ -203,48 +133,27 @@ class AuthRepositoryImpl implements AuthRepository {
     required String token,
     required String newPassword,
   }) async {
-    if (await networkInfo.isConnected) {
-      try {
-        await remoteDataSource.resetPassword(
-          token: token,
-          newPassword: newPassword,
-        );
-        return const Right(null);
-      } on ServerException catch (e) {
-        return Left(ServerFailure(e.message));
-      } catch (e) {
-        return const Left(UnknownFailure('An unexpected error occurred'));
-      }
-    } else {
-      return const Left(NetworkFailure('No internet connection'));
-    }
+    // Not implemented in backend yet
+    return const Left(ServerFailure('Reset password not implemented'));
   }
 
   @override
   Future<Either<Failure, void>> verifyEmail({
     required String token,
   }) async {
-    if (await networkInfo.isConnected) {
-      try {
-        await remoteDataSource.verifyEmail(token: token);
-        return const Right(null);
-      } on ServerException catch (e) {
-        return Left(ServerFailure(e.message));
-      } catch (e) {
-        return const Left(UnknownFailure('An unexpected error occurred'));
-      }
-    } else {
-      return const Left(NetworkFailure('No internet connection'));
-    }
+    // Not implemented in backend yet
+    return const Left(ServerFailure('Email verification not implemented'));
   }
 
   @override
   Future<bool> isLoggedIn() async {
-    return await localDataSource.isLoggedIn();
+    return await authService.isAuthenticated();
   }
 
   @override
   Future<String?> getAccessToken() async {
-    return await localDataSource.getAccessToken();
+    // The AuthService manages tokens internally
+    // This would need to be exposed if needed
+    return null;
   }
 }

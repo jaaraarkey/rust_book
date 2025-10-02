@@ -6,7 +6,6 @@ import '../bloc/notes_state.dart';
 import '../../domain/entities/note.dart';
 import '../widgets/note_editor_toolbar.dart';
 import '../widgets/tag_input_widget.dart';
-import '../../../../core/utils/constants.dart';
 import '../../../../injection_container.dart' as di;
 
 class NoteEditorPage extends StatefulWidget {
@@ -161,6 +160,8 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Note saved successfully')),
             );
+            // Auto-navigate back to notes list after saving
+            Navigator.pop(context);
           } else if (state is NoteDeleted) {
             Navigator.pop(context);
             ScaffoldMessenger.of(context).showSnackBar(
@@ -216,7 +217,17 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                   ),
                 IconButton(
                   icon: const Icon(Icons.save),
+                  tooltip: 'Save Note',
                   onPressed: _saveNote,
+                ),
+                // Add a text save button for better visibility on web
+                TextButton.icon(
+                  onPressed: _saveNote,
+                  icon: const Icon(Icons.save, size: 18),
+                  label: const Text('Save'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.blue,
+                  ),
                 ),
                 if (_currentNote != null)
                   IconButton(
@@ -243,6 +254,11 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                   ],
                 ),
               ],
+            ),
+            floatingActionButton: FloatingActionButton(
+              onPressed: _saveNote,
+              tooltip: 'Save Note',
+              child: const Icon(Icons.save),
             ),
             body: Column(
               children: [

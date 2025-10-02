@@ -11,18 +11,45 @@ class NotesLocalDataSourceImpl implements NotesLocalDataSource {
   @override
   Future<List<NoteModel>> getAllNotes() async {
     try {
+      print('📱 Local data source: Getting all notes...');
+      print(
+          '📦 Local data source: Box info - isOpen: ${notesBox.isOpen}, length: ${notesBox.length}');
+
       final notes = <NoteModel>[];
-      for (var key in notesBox.keys) {
-        final noteData = notesBox.get(key);
-        if (noteData != null) {
-          final noteMap = Map<String, dynamic>.from(noteData);
-          notes.add(NoteModel.fromJson(noteMap));
+
+      // Try to load real notes from Hive storage
+      if (notesBox.isNotEmpty) {
+        print(
+            '📝 Local data source: Loading ${notesBox.length} notes from storage');
+        for (var key in notesBox.keys) {
+          try {
+            final noteData = notesBox.get(key);
+            if (noteData != null) {
+              final noteMap = Map<String, dynamic>.from(noteData);
+              notes.add(NoteModel.fromJson(noteMap));
+            }
+          } catch (e) {
+            print(
+                '⚠️ Local data source: Failed to parse note with key $key: $e');
+          }
         }
       }
-      // Sort by updatedAt descending (most recent first)
+
+      // If no notes found in storage, check if sample data should be loaded
+      if (notes.isEmpty) {
+        print(
+            '📦 Local data source: No notes in storage, checking for sample data...');
+        // Let sample data manager handle initialization
+        // Don't add test data here - let the app show empty state or let sample data manager populate it
+      }
+
+      // Sort notes by updatedAt descending (most recent first)
       notes.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
+      print('✅ Local data source: Returning ${notes.length} notes');
       return notes;
     } catch (e) {
+      print('❌ Local data source error: $e');
       throw CacheException('Failed to get all notes: $e');
     }
   }

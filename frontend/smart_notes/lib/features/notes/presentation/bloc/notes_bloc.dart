@@ -1,5 +1,4 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:uuid/uuid.dart';
 import '../../domain/usecases/get_all_notes.dart';
 import '../../domain/usecases/get_note_by_id.dart';
 import '../../domain/usecases/create_note.dart';
@@ -36,12 +35,22 @@ class NotesBloc extends Bloc<NotesEvent, NotesState> {
     LoadAllNotes event,
     Emitter<NotesState> emit,
   ) async {
+    print('🎭 NotesBloc: LoadAllNotes event received');
     emit(NotesLoading());
 
-    final result = await getAllNotes(NoParams());
+    print('🎭 NotesBloc: Calling getAllNotes use case...');
+    final result = await getAllNotes(const NoParams());
+    print('🎭 NotesBloc: Use case completed');
+
     result.fold(
-      (failure) => emit(NotesError(failure.message)),
-      (notes) => emit(NotesLoaded(notes)),
+      (failure) {
+        print('❌ NotesBloc: Failure received: ${failure.message}');
+        emit(NotesError(failure.message));
+      },
+      (notes) {
+        print('✅ NotesBloc: Success - received ${notes.length} notes');
+        emit(NotesLoaded(notes));
+      },
     );
   }
 
@@ -62,21 +71,30 @@ class NotesBloc extends Bloc<NotesEvent, NotesState> {
     CreateNoteEvent event,
     Emitter<NotesState> emit,
   ) async {
+    print('🎭 NotesBloc: CreateNoteEvent received');
     emit(NotesLoading());
 
-    const uuid = Uuid();
+    print('🎭 NotesBloc: Calling createNote use case...');
     final result = await createNote(CreateNoteParams(
-      id: uuid.v4(),
       title: event.title,
       content: event.content,
       folderId: event.folderId,
       tags: event.tags,
       color: event.color,
+      isPinned: false, // Default to false for new notes
+      isArchived: false, // Default to false for new notes
     ));
 
+    print('🎭 NotesBloc: Use case completed');
     result.fold(
-      (failure) => emit(NotesError(failure.message)),
-      (note) => emit(NoteCreated(note)),
+      (failure) {
+        print('❌ NotesBloc: Create note failure: ${failure.message}');
+        emit(NotesError(failure.message));
+      },
+      (note) {
+        print('✅ NotesBloc: Note created successfully: ${note.title}');
+        emit(NoteCreated(note));
+      },
     );
   }
 

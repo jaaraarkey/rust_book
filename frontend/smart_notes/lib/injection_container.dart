@@ -5,12 +5,11 @@ import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Core
+import 'core/auth/auth_service.dart';
 import 'core/network/network_info.dart';
 import 'core/storage/local_storage.dart';
 
 // Features - Auth
-import 'features/auth/data/datasources/auth_local_datasource.dart';
-import 'features/auth/data/datasources/auth_remote_datasource.dart';
 import 'features/auth/data/repositories/auth_repository_impl.dart';
 import 'features/auth/domain/repositories/auth_repository.dart';
 import 'features/auth/domain/usecases/login_usecase.dart';
@@ -56,19 +55,12 @@ Future<void> init() async {
   // Repository
   sl.registerLazySingleton<AuthRepository>(
     () => AuthRepositoryImpl(
-      remoteDataSource: sl(),
-      localDataSource: sl(),
-      networkInfo: sl(),
+      authService: sl(),
     ),
   );
 
-  // Data sources
-  sl.registerLazySingleton<AuthRemoteDataSource>(
-    () => AuthRemoteDataSourceImpl(),
-  );
-  sl.registerLazySingleton<AuthLocalDataSource>(
-    () => AuthLocalDataSourceImpl(localStorage: sl()),
-  );
+  // Services
+  sl.registerLazySingleton(() => AuthService.instance);
 
   //! Features - Notes
   // Bloc
@@ -94,7 +86,7 @@ Future<void> init() async {
     () => NotesRepositoryImpl(
       remoteDataSource: sl(),
       localDataSource: sl(),
-      networkInfo: sl(),
+      networkInfo: kIsWeb ? null : sl(),
     ),
   );
 
